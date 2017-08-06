@@ -9,6 +9,7 @@ DB = db.DB
 
 PRINT = 0 #change to 1 to turn on printing
 
+#一个字节拆分成两个半字节
 def bin_to_nibbles(s):
     """convert string s to nibbles (half-bytes)
 
@@ -26,7 +27,7 @@ def bin_to_nibbles(s):
         res += divmod(ord(x), 16)
     return res
 
-
+#两个半字节合并成一个字节 并转成String
 def nibbles_to_bin(nibbles):
     if any(x > 15 or x < 0 for x in nibbles):
         raise Exception("nibbles can only be [0,..15]")
@@ -56,14 +57,14 @@ def without_terminator(nibbles):
         del nibbles[-1]
     return nibbles
 
-
+#终止符在nibbles数组最后一位
 def adapt_terminator(nibbles, has_terminator):
     if has_terminator:
         return with_terminator(nibbles)
     else:
         return without_terminator(nibbles)
 
-
+#nibbles 可能含有终止符
 def pack_nibbles(nibbles):
     """pack nibbles to binary
 
@@ -87,7 +88,7 @@ def pack_nibbles(nibbles):
         o += chr(16 * nibbles[i] + nibbles[i + 1])
     return o
 
-
+#bindata  package from nibbles
 def unpack_to_nibbles(bindata):
     """unpack packed binary data to nibbles
 
@@ -96,11 +97,11 @@ def unpack_to_nibbles(bindata):
     """
     o = bin_to_nibbles(bindata)
     flags = o[0]
-    if flags & 2:
+    if flags & 2:#终止符
         o.append(NIBBLE_TERMINATOR)
-    if flags & 1 == 1:
+    if flags & 1 == 1:#奇数
         o = o[1:]
-    else:
+    else:#偶数
         o = o[2:]
     return o
 
