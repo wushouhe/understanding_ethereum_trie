@@ -188,11 +188,13 @@ class Trie(object):
             if node_type == NODE_TYPE_EXTENSION:
                 self._delete_child_stroage(self._decode_to_node(node[1]))
 
+    #node 是k,v数组
     def _encode_node(self, node):
         if node == BLANK_NODE:
             return BLANK_NODE
         assert isinstance(node, list)
         rlpnode = rlp.encode(node)
+        #
         if len(rlpnode) < 32:
             return node
 
@@ -200,6 +202,9 @@ class Trie(object):
         self.db.put(hashkey, rlpnode)
         return hashkey
 
+    """
+        node[n] 所存储的值
+    """
     def _decode_to_node(self, encoded):
         if encoded == BLANK_NODE:
             return BLANK_NODE
@@ -272,17 +277,20 @@ class Trie(object):
         assert value != BLANK_NODE
         node_type = self._get_node_type(node)
 
+        #空节点直接返回,一个叶子节点
         if node_type == NODE_TYPE_BLANK:
             if PRINT: print 'blank'
             return [pack_nibbles(with_terminator(key)), value]
 
         elif node_type == NODE_TYPE_BRANCH:
             if PRINT: print 'branch'
+            #如果key是空 node[-1]=value
             if not key:
                 if PRINT: print '\tdone', node
                 node[-1] = value
                 if PRINT: print '\t', node
 
+            #如果key不是空，递归node[index],从key[0..n]
             else:
                 if PRINT: print 'recursive branch'
                 if PRINT: print '\t', node, key, value
@@ -307,50 +315,68 @@ class Trie(object):
 
     def _update_kv_node(self, node, key, value):
         node_type = self._get_node_type(node)
+        #curr_key 是node[0]存的key
         curr_key = without_terminator(unpack_to_nibbles(node[0]))
         is_inner = node_type == NODE_TYPE_EXTENSION
         if PRINT: print 'this node is an extension node?',  is_inner
         if PRINT: print 'cur key, next key', curr_key, key
 
         # find longest common prefix
+        #寻找key和curr_key共同的最长前缀
         prefix_length = 0
         for i in range(min(len(curr_key), len(key))):
             if key[i] != curr_key[i]:
                 break
             prefix_length = i + 1
 
+        #key 剩余部分
         remain_key = key[prefix_length:]
+        #curr_key　剩余部分
         remain_curr_key = curr_key[prefix_length:]
 
         if PRINT: print 'remain keys..'
         if PRINT: print prefix_length, remain_key, remain_curr_key
 
-        # if the keys were the same, then either this is a terminal node or not.  if yes, return [key, value]. if not, its an extension node, so the value of this node points to another node, from which we use remaining key.
-        
+        # if the keys were the same, then either this is a terminal node or not.  if yes, return [key, value]. if not, 
+        #its an extension node, so the value of this node points to another node, from which we use remaining key.
+
+        #key 等于 curr_key
+        #如果keys相同，如果是terminal node 叶子节点 返回[key,value]，
+        # 如果不是terminal node 是extension node 扩展节点，这个node的value指向另一个node，remaining key
+
+        #curr_key 等于 key
         if remain_key == [] == remain_curr_key:
             if PRINT: print 'keys were same', node[0], key
+            #是叶子节点
             if not is_inner:
                 if PRINT: print 'not an extension node'
                 return [node[0], value]
+            #扩展节点
             if PRINT: print 'yes an extension node!'
             new_node = self._update_and_delete_storage(
                 self._decode_to_node(node[1]), remain_key, value)
 
+        #remain_curr_key 为空，remain_key不为空
         elif remain_curr_key == []:
             if PRINT: print 'old key exhausted'
+            #扩展节点
             if is_inner:
                 if PRINT: print '\t is extension', self._decode_to_node(node[1])
                 new_node = self._update_and_delete_storage(
                     self._decode_to_node(node[1]), remain_key, value)
+            #叶子节点 变成分支节点
             else:
                 if PRINT: print '\tnew branch'
                 new_node = [BLANK_NODE] * 17
+                #分支节点最后以为存储以前叶子节点的值
                 new_node[-1] = node[1]
+                #分支节点存储 新叶子节点的hash值
                 new_node[remain_key[0]] = self._encode_node([
                     pack_nibbles(with_terminator(remain_key[1:])),
                     value
                 ])
             if PRINT: print new_node
+        #remain_curr_key 不为空，remain_key为空 || remain_curr_key 不为空，remain_key 不为空
         else:
             if PRINT:  print 'making a branch'
             new_node = [BLANK_NODE] * 17
@@ -375,9 +401,11 @@ class Trie(object):
                 ])
             if PRINT: print new_node
 
+        #有共同前缀
         if prefix_length:
             # create node for key prefix
             if PRINT: print 'prefix length', prefix_length
+            #创建一个含有共同前缀的节点，存储上一个分支节点
             new_node= [pack_nibbles(curr_key[:prefix_length]),
                     self._encode_node(new_node)]
             if PRINT: print 'new node type', self._get_node_type(new_node)
@@ -395,6 +423,7 @@ class Trie(object):
         encoded = self._encode_node(node)
         if len(encoded) < 32:
             return
+        #从数据库中删除key,node sha3 的值
         self.db.delete(encoded)
 
     def _delete(self, node, key):
@@ -645,6 +674,7 @@ class Trie(object):
         if not isinstance(value, (str, unicode)):
             raise Exception("Value must be string")
 
+        #value 为空删除key
         if value == '':
             return self.delete(key)
 
